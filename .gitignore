@@ -1,0 +1,12 @@
+# build output
+build/
+out/
+*.apk
+
+# signing secrets: never commit these
+*.keystore
+*.jks
+android/keystore.pass
+
+# local screenshots from development
+shots/

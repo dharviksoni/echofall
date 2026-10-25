@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+<title>Echofall</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the frozen board is the hero on the left; a narrow logbook column sits to its right; the rules of the ice follow below. Stacks on phones. */
+:root{
+  --bg:#e8eef1; --surface:#f5f8f9; --ink:#13222c; --muted:#566a77; --line:#c7d3da;
+  --ice-a:#e2ecf1; --ice-b:#b4c8d4; --crack:#36586b; --crack-hi:rgba(255,255,255,.75);
+  --void:#04101a; --void-edge:#25475b; --echo:#c8741f; --select:#1f6585;
+  --w-fill:#fdfcf8; --w-stroke:#17242d; --b-fill:#16233d; --b-stroke:#eef4f7;
+  --danger:#b3362b;
+  --display:"Instrument Serif", Georgia, "Times New Roman", serif;
+  --body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --glyph:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans","Arial Unicode MS",serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0a151c; --surface:#10202a; --ink:#e1ebf0; --muted:#8aa1ae; --line:#203642;
+    --ice-a:#3d5a6b; --ice-b:#27404f; --crack:#a9cde0; --crack-hi:rgba(0,0,0,.35);
+    --void:#010407; --void-edge:#3f6a82; --echo:#ef9d48; --select:#86cbe9;
+    --w-fill:#fdfcf8; --w-stroke:#0b151b; --b-fill:#101a2e; --b-stroke:#cfe1ea;
+    --danger:#ff7a6b; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0a151c; --surface:#10202a; --ink:#e1ebf0; --muted:#8aa1ae; --line:#203642;
+  --ice-a:#3d5a6b; --ice-b:#27404f; --crack:#a9cde0; --crack-hi:rgba(0,0,0,.35);
+  --void:#010407; --void-edge:#3f6a82; --echo:#ef9d48; --select:#86cbe9;
+  --w-fill:#fdfcf8; --w-stroke:#0b151b; --b-fill:#101a2e; --b-stroke:#cfe1ea;
+  --danger:#ff7a6b; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:grid;gap:28px}
+.mast{display:grid;gap:6px}
+.mast h1{font-family:var(--display);font-weight:400;font-size:clamp(3rem,9vw,5.2rem);line-height:.9;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.mast h1 em{color:var(--echo)}
+.lede{margin:0;max-width:60ch;color:var(--muted);font-size:1.02rem}
+
+.table{display:grid;grid-template-columns:minmax(0,600px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:860px){.table{grid-template-columns:minmax(0,1fr)}}
+
+/* Board */
+.stage{min-width:0}
+.board{width:100%;max-width:600px;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);container-type:inline-size;border-radius:6px;overflow:hidden;box-shadow:0 0 0 1px var(--line),0 18px 40px -22px rgba(4,16,26,.55)}
+.sq{position:relative;border:0;padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;overflow:hidden;background:var(--ice-a);display:grid;place-items:center}
+.sq.dark{background:var(--ice-b)}
+.sq:focus-visible{outline:3px solid var(--select);outline-offset:-3px;z-index:2}
+.sq svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.sq svg path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.sq svg .c{stroke:var(--crack);stroke-width:1.7}
+.sq svg .h{stroke:var(--crack-hi);stroke-width:1;transform:translate(1px,1px)}
+.sq.last::after{content:"";position:absolute;inset:0;background:var(--select);opacity:.14;pointer-events:none}
+.sq.sel::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 3px var(--select);background:transparent;opacity:1;pointer-events:none}
+.void{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,var(--void) 35%,var(--void-edge) 100%);pointer-events:none}
+.hole{cursor:default}
+.shard{position:absolute;inset:0;background:inherit;pointer-events:none;animation:fall .9s cubic-bezier(.5,0,.9,.4) forwards;z-index:3}
+@keyframes fall{0%{transform:none;opacity:1}25%{transform:translate(1px,-1px) rotate(-2deg)}100%{transform:translateY(8%) scale(.25) rotate(14deg);opacity:0}}
+.pc,.ghost{position:relative;z-index:2;font-family:var(--glyph);font-size:9.6cqi;line-height:1;pointer-events:none;user-select:none}
+.pc.w{color:var(--w-fill);text-shadow:1px 0 0 var(--w-stroke),-1px 0 0 var(--w-stroke),0 1px 0 var(--w-stroke),0 -1px 0 var(--w-stroke),0 3px 6px rgba(0,0,0,.25)}
+.pc.b{color:var(--b-fill);text-shadow:1px 0 0 var(--b-stroke),-1px 0 0 var(--b-stroke),0 1px 0 var(--b-stroke),0 -1px 0 var(--b-stroke),0 3px 6px rgba(0,0,0,.25)}
+.ghost{color:var(--echo);opacity:.55;filter:blur(.3px)}
+.sq.echo::before{content:"";position:absolute;inset:7%;border:2px dashed var(--echo);border-radius:50%;animation:pulse 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes pulse{50%{transform:scale(.88);opacity:.55}}
+.dot{position:absolute;width:26%;height:26%;border-radius:50%;background:var(--select);opacity:.55;z-index:3;pointer-events:none}
+.sq.cap .dot{width:88%;height:88%;background:transparent;border:3px solid var(--select);opacity:.8}
+.rk,.fl{position:absolute;font-family:var(--mono);font-size:2.1cqi;color:var(--crack);opacity:.85;z-index:1;pointer-events:none}
+.rk{top:4%;left:6%}.fl{bottom:3%;right:7%}
+.board.lock .sq{cursor:wait}
+
+/* Panel */
+.panel{display:grid;gap:18px;min-width:0}
+.status{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:grid;gap:4px}
+.turn{margin:0;font-family:var(--display);font-size:2rem;line-height:1.05}
+.turn.thinking{animation:breathe 1.2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.45}}
+.sub{margin:0;color:var(--muted);font-size:.92rem;min-height:1.5em}
+.sub.alarm{color:var(--danger);font-weight:500}
+.controls{display:grid;gap:12px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink);font:500 .86rem var(--body);padding:9px 6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.field{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:.9rem;color:var(--muted)}
+.field select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:6px 8px}
+.field[aria-disabled="true"]{opacity:.45}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btns button{font:500 .92rem var(--body);padding:10px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.btns button.primary{background:var(--echo);border-color:var(--echo);color:#1a0f03}
+button:focus-visible{outline:3px solid var(--select);outline-offset:2px}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.meter{display:grid;gap:2px}
+.meter b{font-family:var(--mono);font-weight:500;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.meter span{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.captured{display:grid;gap:4px;font-family:var(--glyph);font-size:1.3rem;line-height:1.1}
+.captured div{min-height:1.4em;display:flex;flex-wrap:wrap;gap:2px}
+.captured .w{color:var(--w-fill);text-shadow:1px 0 0 var(--w-stroke),-1px 0 0 var(--w-stroke),0 1px 0 var(--w-stroke),0 -1px 0 var(--w-stroke)}
+.captured .b{color:var(--b-fill);text-shadow:1px 0 0 var(--b-stroke),-1px 0 0 var(--b-stroke),0 1px 0 var(--b-stroke),0 -1px 0 var(--b-stroke)}
+.logwrap{border-top:1px solid var(--line);padding-top:12px}
+.logwrap h3,.rules h3{margin:0 0 6px;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.log{margin:0;padding:0;list-style:none;font-family:var(--mono);font-size:.86rem;max-height:220px;overflow-y:auto;display:grid;grid-template-columns:2.6em 1fr 1fr;row-gap:2px;font-variant-numeric:tabular-nums}
+.log li{display:contents}
+.log .n{color:var(--muted)}
+.log .fell{color:var(--echo)}
+.log .empty{grid-column:1/-1;color:var(--muted);font-family:var(--body)}
+
+/* Bot vs bot */
+.botcfg{display:grid;gap:10px;padding:14px;border:1px dashed var(--line);border-radius:6px}
+.btns button:disabled{opacity:.45;cursor:default}
+.match{display:grid;gap:10px}
+.verdict{margin:0;font-family:var(--display);font-size:1.4rem;line-height:1.15;text-wrap:balance}
+.series{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.series h3{margin:0;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.series .vs{margin:0;font-size:.9rem;color:var(--muted)}
+.tally{display:flex;height:30px;border-radius:5px;overflow:hidden;border:1px solid var(--line);background:var(--surface)}
+.tally span{display:grid;place-items:center;font-family:var(--mono);font-size:.8rem;min-width:0;overflow:hidden;transition:flex-grow .3s}
+.tally .tw{background:var(--w-fill);color:var(--w-stroke)}
+.tally .td{background:var(--line);color:var(--ink)}
+.tally .tb{background:var(--b-fill);color:var(--b-stroke)}
+.series dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.88rem}
+.series dt{color:var(--muted)}
+.series dd{margin:0;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* Rules */
+.rules{display:grid;gap:18px;border-top:1px solid var(--line);padding-top:26px}
+.rules h2{font-family:var(--display);font-weight:400;font-size:2.2rem;margin:0;line-height:1}
+.law{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px}
+.law article{display:grid;grid-template-columns:56px minmax(0,1fr);gap:14px;align-items:start}
+.law p{margin:0;color:var(--muted);font-size:.92rem}
+.law h4{margin:0 0 2px;font-size:1rem;font-weight:600;color:var(--ink)}
+.tile{width:56px;height:56px;border-radius:4px;container-type:inline-size;box-shadow:0 0 0 1px var(--line);cursor:default}
+.tile .pc,.tile .ghost{font-size:72cqi}
+.tactics{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}
+.tactics li{display:grid;gap:2px;font-size:.92rem;color:var(--muted)}
+.tactics b{color:var(--ink);font-family:var(--display);font-weight:400;font-size:1.35rem;line-height:1.1}
+@media (prefers-reduced-motion: reduce){.sq.echo::before,.turn.thinking{animation:none}.shard{animation-duration:.01s}}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <h1>Echo<em>fall</em></h1>
+    <p class="lede">Chess on thin ice. The square you leave is sealed behind you for one turn, and it cracks. Leave a square three times and it falls away for good. There is no check here. Take the king to win.</p>
+  </header>
+
+  <main class="table">
+    <section class="stage">
+      <div class="board" id="board" aria-label="Echofall board"></div>
+    </section>
+
+    <aside class="panel">
+      <div class="status">
+        <p class="turn" id="turn">White to move</p>
+        <p class="sub" id="sub"></p>
+      </div>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Opponent">
+          <button id="m-ai" aria-pressed="true">Vs machine</button>
+          <button id="m-duo" aria-pressed="false">Two players</button>
+          <button id="m-bots" aria-pressed="false">Bot vs bot</button>
+        </div>
+        <label class="field" id="diff-field" for="diff">Machine strength
+          <select id="diff">
+            <option value="1">Apprentice</option>
+            <option value="2" selected>Adept</option>
+            <option value="3">Master (slower)</option>
+          </select>
+        </label>
+        <div class="btns">
+          <button id="undo">Undo</button>
+          <button id="new" class="primary">New game</button>
+        </div>
+      </div>
+      <div class="botcfg" id="botcfg" hidden>
+        <label class="field" for="w-bot">White bot
+          <select id="w-bot"><option value="1">Apprentice</option><option value="2">Adept</option><option value="3" selected>Master</option></select>
+        </label>
+        <label class="field" for="b-bot">Black bot
+          <select id="b-bot"><option value="1">Apprentice</option><option value="2" selected>Adept</option><option value="3">Master</option></select>
+        </label>
+        <label class="field" for="speed">Speed
+          <select id="speed"><option value="900">Slow</option><option value="350" selected>Normal</option><option value="80">Fast</option><option value="0">Instant</option></select>
+        </label>
+        <div class="btns"><button id="go" class="primary">Start match</button><button id="run-series">Run series</button></div>
+        <label class="field" for="series-n">Series length
+          <select id="series-n"><option value="5">5 games</option><option value="10" selected>10 games</option><option value="25">25 games</option></select>
+        </label>
+      </div>
+      <div class="match" id="match" hidden>
+        <p class="verdict" id="verdict">Pick two bots and start the match.</p>
+        <div class="meters">
+          <div class="meter"><b id="m-time">0.0 s</b><span>Match clock</span></div>
+          <div class="meter"><b id="m-moves">0</b><span>Moves</span></div>
+          <div class="meter"><b id="m-tw">0.0 s</b><span>White thinking</span></div>
+          <div class="meter"><b id="m-tb">0.0 s</b><span>Black thinking</span></div>
+        </div>
+      </div>
+      <div class="series" id="series-box" hidden>
+        <h3 id="series-title">Series</h3>
+        <p class="vs" id="series-vs"></p>
+        <div class="tally" aria-label="Series results"><span class="tw" id="t-w"></span><span class="td" id="t-d"></span><span class="tb" id="t-b"></span></div>
+        <dl>
+          <dt>Score</dt><dd id="s-score"></dd>
+          <dt>Average game</dt><dd id="s-avg"></dd>
+          <dt>Fastest win</dt><dd id="s-fast"></dd>
+        </dl>
+      </div>
+      <div class="meters">
+        <div class="meter"><b id="quiet">0 / 40</b><span>Quiet moves</span></div>
+        <div class="meter"><b id="holes">0</b><span>Squares fallen</span></div>
+      </div>
+      <div class="captured" aria-label="Captured pieces">
+        <div id="cap-b"></div>
+        <div id="cap-w"></div>
+      </div>
+      <div class="logwrap">
+        <h3>Logbook</h3>
+        <ol class="log" id="log"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <section class="rules">
+    <h2>How the ice works</h2>
+    <div class="law">
+      <article>
+        <div class="tile sq light echo" id="t-echo"></div>
+        <div><h4>Echo</h4><p>When a piece moves, the square it left keeps its echo for your opponent's next move. They can't land on it or slide through it. Knights can still jump over.</p></div>
+      </article>
+      <article>
+        <div class="tile sq dark" id="t-crack"></div>
+        <div><h4>Crack</h4><p>Every departure cracks the ice. One crack, two cracks. Standing on a square never harms it. Only leaving does.</p></div>
+      </article>
+      <article>
+        <div class="tile sq light hole" id="t-hole"></div>
+        <div><h4>Fall</h4><p>On the third departure the square falls into the water. Nothing can land on a hole or slide across it. Knights jump over.</p></div>
+      </article>
+      <article>
+        <div class="tile sq dark" id="t-king"></div>
+        <div><h4>Crown</h4><p>No check and no checkmate. Capture the king to win. A player with no legal move is stranded and loses. Forty moves each without a capture is a draw.</p></div>
+      </article>
+    </div>
+    <h3>Ideas to try</h3>
+    <ul class="tactics">
+      <li><b>The seal</b>Step a blocker out of a line. Its echo still blocks that line for one turn, so you can unmask an attack your opponent can't answer along the same line.</li>
+      <li><b>The moat</b>Squares around a king fall as pieces shuffle past. Wear down the ice next to the enemy king until it has nowhere to step.</li>
+      <li><b>Thin ground</b>A piece on a twice-cracked square is safe until it moves. When it leaves, the square falls and can cut off your own retreat.</li>
+    </ul>
+    <p class="sub">Pieces move as in standard chess. There is no castling and no en passant. Pawns promote to queens on the last rank.</p>
+  </section>
+</div>
+
+<script>
+const FILES = 'abcdefgh';
+const VAL = {p:100, n:300, b:320, r:500, q:900, k:20000};
+const GLYPH = {k:'♚', q:'♛', r:'♜', b:'♝', n:'♞', p:'♟'};
+const KN = [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]];
+const KG = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+const DIAG = [[-1,-1],[-1,1],[1,-1],[1,1]], ORTH = [[-1,0],[1,0],[0,-1],[0,1]];
+const WIN = 1e6;
+
+// ---------- rules engine ----------
+function initial() {
+  const b = Array(64).fill(null), back = 'rnbqkbnr';
+  for (let c = 0; c < 8; c++) {
+    b[c] = {t:back[c], c:'b'}; b[8+c] = {t:'p', c:'b'};
+    b[48+c] = {t:'p', c:'w'}; b[56+c] = {t:back[c], c:'w'};
+  }
+  return {board:b, cracks:Array(64).fill(0), echo:-1, echoPiece:null, turn:'w', clock:0, last:null, winner:null, reason:null};
+}
+const other = s => s === 'w' ? 'b' : 'w';
+const blocked = (st, s) => st.cracks[s] >= 3 || s === st.echo;
+
+function gen(st) {
+  const side = st.turn, B = st.board, out = [];
+  const add = (from, to, pt, cap, promo) => out.push({from, to, pt, cap, promo});
+  for (let s = 0; s < 64; s++) {
+    const p = B[s]; if (!p || p.c !== side) continue;
+    const r = s >> 3, c = s & 7;
+    if (p.t === 'p') {
+      const d = side === 'w' ? -1 : 1, r1 = r + d;
+      if (r1 < 0 || r1 > 7) continue;
+      const promo = r1 === 0 || r1 === 7, t = r1 * 8 + c;
+      if (!B[t] && !blocked(st, t)) {
+        add(s, t, 'p', null, promo);
+        if (r === (side === 'w' ? 6 : 1)) {
+          const t2 = (r + 2 * d) * 8 + c;
+          if (!B[t2] && !blocked(st, t2)) add(s, t2, 'p', null, false);
+        }
+      }
+      for (const dc of [-1, 1]) {
+        const cc = c + dc; if (cc < 0 || cc > 7) continue;
+        const tt = r1 * 8 + cc, q = B[tt];
+        if (q && q.c !== side) add(s, tt, 'p', q.t, promo);
+      }
+    } else if (p.t === 'n' || p.t === 'k') {
+      for (const [dr, dc] of (p.t === 'n' ? KN : KG)) {
+        const rr = r + dr, cc = c + dc; if (rr < 0 || rr > 7 || cc < 0 || cc > 7) continue;
+        const t = rr * 8 + cc, q = B[t];
+        if ((q && q.c === side) || blocked(st, t)) continue;
+        add(s, t, p.t, q ? q.t : null, false);
+      }
+    } else {
+      const dirs = p.t === 'b' ? DIAG : p.t === 'r' ? ORTH : DIAG.concat(ORTH);
+      for (const [dr, dc] of dirs) {
+        let rr = r + dr, cc = c + dc;
+        while (rr >= 0 && rr < 8 && cc >= 0 && cc < 8) {
+          const t = rr * 8 + cc;
+          if (blocked(st, t)) break;
+          const q = B[t];
+          if (q) { if (q.c !== side) add(s, t, p.t, q.t, false); break; }
+          add(s, t, p.t, null, false);
+          rr += dr; cc += dc;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function apply(st, m) {
+  const B = st.board.slice(), K = st.cracks.slice();
+  const p = B[m.from], cap = B[m.to];
+  B[m.to] = m.promo ? {t:'q', c:p.c} : p;
+  B[m.from] = null;
+  K[m.from] = Math.min(3, K[m.from] + 1);
+  const fell = K[m.from] === 3;
+  const ns = {board:B, cracks:K, echo: fell ? -1 : m.from, echoPiece: fell ? null : p,
+    turn: other(st.turn), clock: cap ? 0 : st.clock + 1, last:{from:m.from, to:m.to, fell}, winner:null, reason:null};
+  if (cap && cap.t === 'k') { ns.winner = st.turn; ns.reason = 'king'; }
+  else if (ns.clock >= 80) { ns.winner = 'draw'; ns.reason = 'clock'; }
+  return ns;
+}
+
+// Called after a real move: settles the stranded rule, which the search handles on its own.
+function settle(st) {
+  if (!st.winner && gen(st).length === 0) { st.winner = other(st.turn); st.reason = 'stranded'; }
+  return st;
+}
+
+// ---------- machine opponent ----------
+function evaluate(st) {
+  let s = 0;
+  for (let i = 0; i < 64; i++) {
+    const p = st.board[i]; if (!p) continue;
+    const r = i >> 3, c = i & 7;
+    const cent = 3.5 - Math.max(Math.abs(r - 3.5), Math.abs(c - 3.5));
+    let v = VAL[p.t];
+    if (p.t === 'n' || p.t === 'b') v += cent * 8;
+    else if (p.t === 'q') v += cent * 3;
+    else if (p.t === 'p') v += (p.c === 'w' ? 6 - r : r - 1) * 9 + cent * 3;
+    else if (p.t === 'k') {
+      let room = 0;
+      for (const [dr, dc] of KG) {
+        const rr = r + dr, cc = c + dc;
+        if (rr >= 0 && rr < 8 && cc >= 0 && cc < 8 && st.cracks[rr * 8 + cc] < 3) room++;
+      }
+      v += room * 7 - cent * 3;
+    }
+    if (p.t !== 'k' && st.cracks[i] === 2) v -= 6;
+    s += p.c === st.turn ? v : -v;
+  }
+  return s;
+}
+const moveScore = m => (m.cap ? VAL[m.cap] * 10 - VAL[m.pt] / 10 : 0) + (m.promo ? 8000 : 0);
+const order = ms => ms.sort((a, b) => moveScore(b) - moveScore(a));
+
+function quiesce(st, alpha, beta, d) {
+  if (st.winner) return st.winner === 'draw' ? 0 : -WIN;
+  const stand = evaluate(st);
+  if (d === 0 || stand >= beta) return stand;
+  if (stand > alpha) alpha = stand;
+  const ms = order(gen(st).filter(m => m.cap || m.promo));
+  for (const m of ms) {
+    const v = -quiesce(apply(st, m), -beta, -alpha, d - 1);
+    if (v >= beta) return v;
+    if (v > alpha) alpha = v;
+  }
+  return alpha;
+}
+function negamax(st, depth, alpha, beta) {
+  if (st.winner) return st.winner === 'draw' ? 0 : -(WIN + depth);
+  if (depth === 0) return quiesce(st, alpha, beta, 4);
+  const ms = gen(st);
+  if (!ms.length) return -(WIN + depth);
+  order(ms);
+  let best = -Infinity;
+  for (const m of ms) {
+    const v = -negamax(apply(st, m), depth - 1, -beta, -alpha);
+    if (v > best) best = v;
+    if (v > alpha) alpha = v;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+function pickMove(st, depth) {
+  const ms = order(gen(st));
+  let best = -Infinity; const res = [];
+  for (const m of ms) {
+    const floor = best === -Infinity ? -Infinity : best - 15;
+    const v = -negamax(apply(st, m), depth - 1, -Infinity, -floor);
+    res.push([v, m]);
+    if (v > best) best = v;
+  }
+  const pool = res.filter(([v]) => v >= best - 10);
+  return pool[Math.floor(Math.random() * pool.length)][1];
+}
+
+// ---------- ice art ----------
+function rng(seed) {
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function arm(R, x, y, ang, steps) {
+  let d = `M${x.toFixed(1)} ${y.toFixed(1)}`;
+  for (let k = 0; k < steps; k++) {
+    ang += (R() - .5) * 1.1; const len = 7 + R() * 11;
+    x += Math.cos(ang) * len; y += Math.sin(ang) * len;
+    d += ` L${x.toFixed(1)} ${y.toFixed(1)}`;
+  }
+  return d;
+}
+const svg = paths => `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${paths.map(p => `<path class="h" d="${p}"/><path class="c" d="${p}"/>`).join('')}</svg>`;
+const CRACKS = [], HOLES = [];
+for (let i = 0; i < 64; i++) {
+  const R = rng(i * 9973 + 17);
+  const x = 30 + R() * 40, y = 30 + R() * 40, a = R() * Math.PI * 2;
+  const one = [arm(R, x, y, a, 5), arm(R, x, y, a + Math.PI, 4)];
+  const two = one.concat([arm(R, x, y, a + 1.9, 5), arm(R, x, y, a - 1.6, 4), arm(R, 20 + R() * 60, 20 + R() * 60, R() * 6.3, 3)]);
+  CRACKS.push([svg(one), svg(two)]);
+  const pts = [];
+  for (let k = 0; k < 14; k++) {
+    const ang = k / 14 * Math.PI * 2, rad = 37 + R() * 13;
+    pts.push(`${Math.max(1, Math.min(99, 50 + Math.cos(ang) * rad)).toFixed(1)}% ${Math.max(1, Math.min(99, 50 + Math.sin(ang) * rad)).toFixed(1)}%`);
+  }
+  HOLES.push(`polygon(${pts.join(',')})`);
+}
+
+// ---------- interface ----------
+const $ = id => document.getElementById(id);
+const boardEl = $('board'), sqEls = [];
+const sqName = i => FILES[i & 7] + (8 - (i >> 3));
+const sideName = s => s === 'w' ? 'White' : 'Black';
+const PNAME = {k:'king', q:'queen', r:'rook', b:'bishop', n:'knight', p:'pawn'};
+
+let G, hist, log, mode = 'ai', diff = 2, sel = -1, thinking = false, fallAnim = -1, timer = null;
+
+for (let i = 0; i < 64; i++) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.addEventListener('click', () => onSquare(i));
+  boardEl.appendChild(b); sqEls.push(b);
+}
+
+function san(st, m, ns) {
+  let s = m.pt === 'p' ? (m.cap ? FILES[m.from & 7] : '') : m.pt.toUpperCase();
+  s += (m.cap ? 'x' : '') + sqName(m.to) + (m.promo ? '=Q' : '');
+  if (m.cap === 'k') s += '#';
+  return {text:s, fell:ns.last.fell};
+}
+
+function play(m) {
+  const ns = settle(apply(G, m));
+  hist.push(G); log.push(san(G, m, ns));
+  if (ns.last.fell) fallAnim = m.from;
+  G = ns; sel = -1;
+  if (!G.winner && hist.length >= MAX_PLY) { G.winner = 'draw'; G.reason = 'cap'; }
+  render();
+  if (G.winner) { if (mode === 'bots') endMatch(); return; }
+  if (mode === 'ai' && G.turn === 'b') {
+    thinking = true; render();
+    timer = setTimeout(() => {
+      const mv = pickMove(G, diff);
+      thinking = false; timer = null;
+      play(mv);
+    }, 260);
+  }
+  if (mode === 'bots' && running) timer = setTimeout(botStep, speed);
+}
+
+// ---------- bot vs bot ----------
+const MAX_PLY = 400; // safety cap: 200 moves each side ends a bot match as a draw
+const LV = {1:'Apprentice', 2:'Adept', 3:'Master'};
+let wBot = 3, bBot = 2, matchLv = {w:3, b:2}, speed = 350, running = false, elapsed = 0, runStart = 0, think = {w:0, b:0}, clockTick = null;
+let seriesRun = null, lastSeries = null;
+const matchTime = () => elapsed + (running ? performance.now() - runStart : 0);
+const secs = ms => (ms / 1000).toFixed(1) + ' s';
+
+function botStep() {
+  timer = null;
+  if (mode !== 'bots' || !running || G.winner) return;
+  const side = G.turn, t0 = performance.now();
+  const mv = pickMove(G, matchLv[side]);
+  think[side] += performance.now() - t0;
+  play(mv);
+}
+function pauseMatch() {
+  if (!running) return;
+  elapsed += performance.now() - runStart; running = false;
+  clearTimeout(timer); timer = null; clearInterval(clockTick);
+}
+function endMatch() { pauseMatch(); render(); }
+function toggleMatch() {
+  if (seriesRun) return;
+  if (running) { pauseMatch(); render(); return; }
+  if (G.winner) newGame();
+  if (!hist.length) matchLv = {w:wBot, b:bBot};
+  running = true; runStart = performance.now();
+  clockTick = setInterval(renderMatch, 100);
+  render(); botStep();
+}
+function renderMatch() {
+  $('m-time').textContent = secs(matchTime());
+  $('m-moves').textContent = Math.ceil(hist.length / 2);
+  $('m-tw').textContent = secs(think.w);
+  $('m-tb').textContent = secs(think.b);
+  const v = $('verdict');
+  if (G.winner === 'draw') v.textContent = `Draw after ${Math.ceil(hist.length / 2)} moves, ${secs(matchTime())}.`;
+  else if (G.winner) v.textContent = `${sideName(G.winner)} bot (${LV[matchLv[G.winner]]}) wins in ${Math.ceil(hist.length / 2)} moves, ${secs(matchTime())}.`;
+  else if (running) v.textContent = `${LV[wBot]} vs ${LV[bBot]}. Match running.`;
+  else v.textContent = hist.length ? 'Paused.' : 'Pick two bots and start the match.';
+  $('go').textContent = running ? 'Pause' : G.winner ? 'New match' : hist.length ? 'Resume' : 'Start match';
+  $('go').disabled = !!seriesRun;
+  $('run-series').textContent = seriesRun ? 'Stop series' : 'Run series';
+}
+
+// Plays whole games off-screen, a few moves per tick so the page stays responsive.
+function runSeries() {
+  if (seriesRun) { seriesRun.stop = true; return; }
+  pauseMatch();
+  const S = seriesRun = {n:+$('series-n').value, done:0, w:0, b:0, d:0, moves:0, ms:0, fastest:null, stop:false, wl:wBot, bl:bBot, cur:null};
+  const tick = () => {
+    if (S.stop || S.done >= S.n) { seriesRun = null; lastSeries = S; render(); renderSeries(S); return; }
+    if (!S.cur) S.cur = {st:initial(), ply:0, ms:0};
+    const c = S.cur, t0 = performance.now();
+    while (!c.st.winner && c.ply < MAX_PLY && performance.now() - t0 < 40) {
+      c.st = settle(apply(c.st, pickMove(c.st, c.st.turn === 'w' ? S.wl : S.bl))); c.ply++;
+    }
+    c.ms += performance.now() - t0;
+    if (c.st.winner || c.ply >= MAX_PLY) {
+      const w = c.st.winner && c.st.winner !== 'draw' ? c.st.winner : 'd';
+      S[w]++; S.done++; S.moves += Math.ceil(c.ply / 2); S.ms += c.ms;
+      if (w !== 'd' && (!S.fastest || c.ply < S.fastest.ply)) S.fastest = {side:w, ply:c.ply, ms:c.ms};
+      S.cur = null;
+    }
+    renderSeries(S);
+    setTimeout(tick, 0);
+  };
+  render(); renderSeries(S); setTimeout(tick, 0);
+}
+function renderSeries(S) {
+  if (!S) return;
+  $('series-box').hidden = mode !== 'bots';
+  $('series-title').textContent = seriesRun === S ? `Series: game ${Math.min(S.done + 1, S.n)} of ${S.n}` : `Series: ${S.done} game${S.done === 1 ? '' : 's'} played`;
+  $('series-vs').textContent = `White ${LV[S.wl]} vs Black ${LV[S.bl]}`;
+  for (const [id, k, label] of [['t-w', 'w', 'W'], ['t-d', 'd', 'D'], ['t-b', 'b', 'B']]) {
+    const el = $(id); el.style.flexGrow = S[k]; el.style.display = S[k] ? '' : 'none'; el.textContent = `${label} ${S[k]}`;
+  }
+  $('s-score').textContent = `White ${S.w} · Draws ${S.d} · Black ${S.b}`;
+  $('s-avg').textContent = S.done ? `${(S.moves / S.done).toFixed(1)} moves, ${secs(S.ms / S.done)}` : '…';
+  $('s-fast').textContent = S.fastest ? `${sideName(S.fastest.side)} in ${Math.ceil(S.fastest.ply / 2)} moves, ${secs(S.fastest.ms)}` : 'none yet';
+}
+
+function onSquare(i) {
+  if (mode === 'bots') return;
+  if (G.winner || thinking) return;
+  if (mode === 'ai' && G.turn !== 'w') return;
+  if (sel >= 0) {
+    const m = gen(G).find(x => x.from === sel && x.to === i);
+    if (m) return play(m);
+  }
+  const p = G.board[i];
+  sel = (p && p.c === G.turn && i !== sel) ? i : -1;
+  render();
+}
+
+function kingAttacked(side) {
+  const probe = {...G, turn:other(side), echo:-1};
+  return gen(probe).some(m => m.cap === 'k');
+}
+
+function render() {
+  const legal = sel >= 0 ? gen(G).filter(m => m.from === sel) : [];
+  const tgt = new Map(legal.map(m => [m.to, m]));
+  boardEl.classList.toggle('lock', thinking);
+  for (let i = 0; i < 64; i++) {
+    const el = sqEls[i], p = G.board[i], k = G.cracks[i];
+    let cls = 'sq ' + (((i >> 3) + (i & 7)) % 2 ? 'dark' : 'light');
+    if (k >= 3) cls += ' hole';
+    if (G.last && (G.last.from === i || G.last.to === i)) cls += ' last';
+    if (i === sel) cls += ' sel';
+    if (tgt.has(i)) cls += tgt.get(i).cap ? ' cap' : ' move';
+    if (i === G.echo) cls += ' echo';
+    let h = '';
+    if (k >= 3) {
+      h += `<span class="void" style="clip-path:${HOLES[i]}"></span>`;
+      if (i === fallAnim) h += `<span class="shard">${CRACKS[i][1]}</span>`;
+    } else if (k > 0) h += CRACKS[i][k - 1];
+    if (i === G.echo && G.echoPiece) h += `<span class="ghost">${GLYPH[G.echoPiece.t]}︎</span>`;
+    if (p) h += `<span class="pc ${p.c}">${GLYPH[p.t]}︎</span>`;
+    if (tgt.has(i)) h += '<span class="dot"></span>';
+    if ((i & 7) === 0) h += `<span class="rk">${8 - (i >> 3)}</span>`;
+    if ((i >> 3) === 7) h += `<span class="fl">${FILES[i & 7]}</span>`;
+    el.className = cls; el.innerHTML = h;
+    let label = sqName(i) + (p ? `, ${sideName(p.c).toLowerCase()} ${PNAME[p.t]}` : '');
+    if (k >= 3) label += ', fallen'; else if (k) label += `, ${k} crack${k > 1 ? 's' : ''}`;
+    if (i === G.echo) label += ', sealed';
+    el.setAttribute('aria-label', label);
+  }
+  fallAnim = -1;
+
+  const turn = $('turn'), sub = $('sub');
+  turn.classList.toggle('thinking', thinking);
+  sub.classList.remove('alarm');
+  if (G.winner) {
+    if (G.winner === 'draw') { turn.textContent = 'Draw'; sub.textContent = G.reason === 'cap' ? 'The match reached 200 moves each.' : 'Forty moves each passed without a capture.'; }
+    else {
+      turn.textContent = `${sideName(G.winner)} wins`;
+      sub.textContent = G.reason === 'king' ? `${sideName(G.winner)} captured the king.` : `${sideName(other(G.winner))} has no legal move and is stranded.`;
+    }
+  } else if (mode === 'bots') {
+    turn.textContent = `${sideName(G.turn)} bot to move`;
+    sub.textContent = `${LV[hist.length ? matchLv[G.turn] : (G.turn === 'w' ? wBot : bBot)]}. ` + (G.echo >= 0 ? `${sqName(G.echo)} is sealed for this move.` : hist.length ? 'No echo this turn. The square fell.' : 'Press Start match.');
+  } else if (thinking) {
+    turn.textContent = 'Black is thinking'; sub.textContent = 'Reading the ice.';
+  } else {
+    turn.textContent = `${sideName(G.turn)} to move`;
+    if (kingAttacked(G.turn)) { sub.textContent = 'Your king can be captured next move.'; sub.classList.add('alarm'); }
+    else sub.textContent = G.echo >= 0 ? `${sqName(G.echo)} is sealed for this move.` : (hist.length ? 'No echo this turn. The square fell.' : 'Pick a piece to see where it can go.');
+  }
+
+  $('quiet').textContent = `${Math.floor(G.clock / 2)} / 40`;
+  $('holes').textContent = G.cracks.filter(k => k >= 3).length;
+
+  const start = {p:8, n:2, b:2, r:2, q:1};
+  for (const side of ['w', 'b']) {
+    const have = {p:0, n:0, b:0, r:0, q:0};
+    G.board.forEach(p => { if (p && p.c === side && p.t !== 'k') have[p.t]++; });
+    let s = '';
+    for (const t of ['q', 'r', 'b', 'n', 'p']) for (let n = Math.max(0, start[t] - have[t]); n > 0; n--) s += `<span class="${side}">${GLYPH[t]}︎</span>`;
+    $('cap-' + side).innerHTML = s;
+  }
+
+  const lg = $('log');
+  if (!log.length) lg.innerHTML = '<li class="empty">No moves yet. White opens.</li>';
+  else {
+    let h = '';
+    const cell = e => e ? `<span class="${e.fell ? 'fell' : ''}">${e.text}${e.fell ? ' ↓' : ''}</span>` : '<span></span>';
+    for (let i = 0; i < log.length; i += 2) h += `<li><span class="n">${i / 2 + 1}.</span>${cell(log[i])}${cell(log[i + 1])}</li>`;
+    lg.innerHTML = h; lg.scrollTop = lg.scrollHeight;
+  }
+
+  $('m-ai').setAttribute('aria-pressed', mode === 'ai');
+  $('m-duo').setAttribute('aria-pressed', mode === 'duo');
+  $('m-bots').setAttribute('aria-pressed', mode === 'bots');
+  $('diff-field').setAttribute('aria-disabled', mode !== 'ai');
+  $('diff-field').hidden = mode === 'bots';
+  $('diff').disabled = mode !== 'ai';
+  $('undo').disabled = !hist.length || thinking || mode === 'bots';
+  $('botcfg').hidden = $('match').hidden = mode !== 'bots';
+  $('series-box').hidden = mode !== 'bots' || !(seriesRun || lastSeries);
+  if (mode === 'bots') { renderMatch(); renderSeries(seriesRun || lastSeries); }
+}
+
+function newGame() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  pauseMatch(); elapsed = 0; think = {w:0, b:0};
+  G = initial(); hist = []; log = []; sel = -1; thinking = false;
+  render();
+}
+function setMode(m) {
+  if (mode === m) return;
+  if (seriesRun) seriesRun.stop = true;
+  mode = m; newGame();
+}
+$('new').addEventListener('click', newGame);
+$('undo').addEventListener('click', () => {
+  if (thinking || !hist.length) return;
+  const steps = mode === 'ai' ? (G.turn === 'w' && hist.length >= 2 ? 2 : 1) : 1;
+  for (let k = 0; k < steps && hist.length; k++) { G = hist.pop(); log.pop(); }
+  sel = -1; render();
+});
+$('m-ai').addEventListener('click', () => setMode('ai'));
+$('m-duo').addEventListener('click', () => setMode('duo'));
+$('m-bots').addEventListener('click', () => setMode('bots'));
+$('diff').addEventListener('change', e => { diff = +e.target.value; });
+$('w-bot').addEventListener('change', e => { wBot = +e.target.value; render(); });
+$('b-bot').addEventListener('change', e => { bBot = +e.target.value; render(); });
+$('speed').addEventListener('change', e => { speed = +e.target.value; });
+$('go').addEventListener('click', toggleMatch);
+$('run-series').addEventListener('click', runSeries);
+
+// Legend tiles reuse the board's own art.
+$('t-echo').innerHTML = `<span class="ghost">${GLYPH.n}︎</span>`;
+$('t-crack').innerHTML = CRACKS[27][1];
+$('t-hole').innerHTML = `<span class="void" style="clip-path:${HOLES[12]}"></span>`;
+$('t-king').innerHTML = `<span class="pc w">${GLYPH.k}︎</span>`;
+
+function start(data) {
+  if (data && data.G) {
+    ({G, hist, log, mode, diff} = data);
+    $('diff').value = diff; sel = -1; thinking = false; render();
+    if (mode === 'ai' && !G.winner && G.turn === 'b') { const g = G; G = hist.pop(); log.pop(); play(gen(G).find(m => m.from === g.last.from && m.to === g.last.to) || pickMove(G, 1)); }
+  } else newGame();
+}
+window.claude?.hot?.snapshot?.(() => ({G, hist, log, mode, diff}));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
+
+</html>
